@@ -1,0 +1,4 @@
+model: /home/catkin_ws/projects/clip_sam_ws/CLIP-ViT-B-32-laion2B-s34B-b79K/_ggml-model-f32.gguf
+threads: 4
+image: /home/catkin_ws/projects/clip_sam_ws/frame0093.jpg
+verbose: 1

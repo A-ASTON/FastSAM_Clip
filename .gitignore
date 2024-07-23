@@ -1,0 +1,12 @@
+test_images/
+output/
+models/
+build/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.idea
+weights/
+*.egg-info/
+.vscode/
