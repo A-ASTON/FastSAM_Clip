@@ -1,6 +1,7 @@
 #pragma once
 #include "fastsam_instance/common-fastsam.h"
 #include "fastsam_instance/fastsam.h"
+#include "common.h"
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include <string>
@@ -12,15 +13,18 @@ public:
     ~FastSamInstance();
 
     void infer(const cv::Mat& img);
-    void format_results(); // 根据内部objs_计算
+    void crop_images(bool filter = false); //根据后处理得到的objs_，更新segments_
+    Segment segment_image(const Object& obj, const int id);
+    std::vector<Segment> get_segments();
 private:
     // trt module related只保留一个FastSAM实例
     std::unique_ptr<FastSam> fastsam_;
     std::vector<Object> objs_;
+    std::vector<Segment> segments_;
     int cnt_;
     double time_sum_;
     cv::Mat color_mask_, image_;
-    std::vector<annotation> format_results_;
+    cv::Size fix_size_; // 指的是网络固定的输入大小
 };
 
 }

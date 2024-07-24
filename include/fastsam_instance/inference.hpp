@@ -151,13 +151,16 @@ public:
     {
         // DMA input batch data to device, infer on the batch asynchronously, and
         // DMA output back to host
+        // 通过enqueueV2执行推理
         this->context->enqueueV2(this->device_ptrs.data(), this->stream, nullptr);
+        // 将数据拷贝到host
+        // 遍历每个output_binding
         for (int i = 0; i < this->num_outputs; i++)
         {
             size_t osize =
-                this->output_bindings[i].size * this->output_bindings[i].dsize;
+                this->output_bindings[i].size * this->output_bindings[i].dsize; // 每块output_binding的大小
             CHECK(cudaMemcpyAsync(this->host_ptrs[i],
-                                  this->device_ptrs[i + this->num_inputs], osize,
+                                  this->device_ptrs[i + this->num_inputs], osize, // 从num_inputs后开始是output数据，指定osize
                                   cudaMemcpyDeviceToHost, this->stream));
         }
         cudaStreamSynchronize(this->stream);

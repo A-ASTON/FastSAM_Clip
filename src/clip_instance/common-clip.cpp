@@ -159,6 +159,9 @@ bool app_params_yaml(std::string yaml_filename, app_params & params) {
     if (config["verbose"]) {
         params.verbose = config["verbose"].as<int>();
     }
+    if (config["text"]) {
+        params.texts.push_back(config["text"].as<std::string>());
+    }
     return true;
 }
 

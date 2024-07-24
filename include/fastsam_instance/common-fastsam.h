@@ -47,7 +47,7 @@ struct Binding {
 };
 
 struct Object {
-    cv::Rect_<float> rect; // 左上角点的坐标和weight，height
+    cv::Rect_<float> rect; // 左上角点的坐标和weight，height, bbox
     [[maybe_unused]]  int label = 0;  //避免编译器警告
     float prob = 0.0;
     cv::Mat boxMask;
@@ -71,12 +71,6 @@ struct anchorBox {
     float c_y;
     float width;
     float height;
-};
-struct annotation {
-    size_t id;
-    cv::Mat segmentation; // 大小和原图一样的通过mask得到分割区域的图片
-    float score;
-    size_t area; // mask 的面积
 };
 
 
