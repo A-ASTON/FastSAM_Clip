@@ -70,6 +70,10 @@ target_link_libraries(test_fastsam fastsam_instance)
 add_executable(test_clip test/test_clip.cpp)
 target_include_directories(test_clip PUBLIC include .)
 target_link_libraries(test_clip clip_instance)
+
+add_executable(test_clip_single test/test_clip_single.cpp)
+target_include_directories(test_clip_single PUBLIC include .)
+target_link_libraries(test_clip_single clip_instance)
 endif (BUILD_TEST)
 
 add_executable(sam_to_clip src/sam_to_clip.cpp)

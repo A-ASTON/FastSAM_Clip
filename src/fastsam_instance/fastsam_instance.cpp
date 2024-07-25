@@ -103,8 +103,14 @@ Segment FastSamInstance::segment_image(const Object& obj, const int id) {
         w = x2 - x1;
         h = y2 - y1;
     }
-    // 最小外接矩阵掩码
+    // 最小外接矩阵掩码，往外再多加一点像素
     cv::Mat new_mask = cv::Mat::zeros(mask.size(), CV_8UC1);
+
+    x1 = x1 - 10;
+    x2 = x2 + 10;
+    y1 = y1 - 10;
+    y2 = y2 + 10;
+
     clamp(x1, 0, mask.rows);
     clamp(x2, 0, mask.rows);
     clamp(y1, 0, mask.cols);

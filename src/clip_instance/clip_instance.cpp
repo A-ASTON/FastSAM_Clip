@@ -59,6 +59,7 @@ float* ClipInstance::generate_text_feature(const char* text) {
 }
 
 bool ClipInstance::generate_segments_feature(std::vector<Segment>& segments) {
+    // 以batch的方式
     if (segments.size() == 0) {
         std::cout << "Segments' size is zero!" << std::endl;
         return false;
@@ -112,21 +113,62 @@ void ClipInstance::compute_image_text_similarity(clip_image_u8& res, const char*
 // bool generate_masks_feature(std::vector<CropImg>& crop_imgs) {
 //     // 生成多个mask的feature，通常属于一张image
 // }
- 
-bool ClipInstance::to_clip_image_f32(clip_image_f32& res, const cv::Mat& img) {
+bool ClipInstance::to_clip_image_u8(clip_image_u8& res, const cv::Mat& img) {
     // transfer to clip_image_u8
+    // cv::Mat is BGR!!!
+    // stbi is RGBRGBRGB
     if (!img.data) {
         return false;
     }
+
+    cv::Mat image_RGB = img.clone();
+    cv::cvtColor(img, image_RGB, cv::COLOR_BGR2RGB);
+
+
+    res.nx = img.cols;
+    res.ny = img.rows;
+    res.size = img.cols * img.rows * 3;
+    // res.data = static_cast<uint8_t*>(img.data); // 只是将指针的值进行复制，并没有进行内存的复制
+    res.data = new uint8_t[res.size]();
+    
+    // 试试逐像素赋值
+    // for (int i = 0; i < image_RGB.rows; ++i) {
+    //     for (int j = 0; j < image_RGB.cols; ++j) {
+    //         // 对于多通道图像
+    //         cv::Vec3b color = image_RGB.at<cv::Vec3b>(i, j);
+    //         uint8_t blue = color.val[0];
+    //         uint8_t green = color.val[1];
+    //         uint8_t red = color.val[2];
+
+    //         res.data[i * image_RGB.cols * 3 + j * 3 + 0] = red;
+    //         res.data[i * image_RGB.cols * 3 + j * 3 + 1] = green;
+    //         res.data[i * image_RGB.cols * 3 + j * 3 + 2] = blue;
+    //     }
+    // }
+
+    memcpy(res.data, image_RGB.data, res.size * sizeof(uint8_t));
+    
+    return true;
+}
+
+bool ClipInstance::to_clip_image_f32(clip_image_f32& res, const cv::Mat& img) {
+    // transfer to clip_image_f32
+    // cv::Mat is BGR!!!
+    // stbi is RGBRGBRGB
+    if (!img.data) {
+        return false;
+    }
+    cv::Mat image_RGB;
+    cv::cvtColor(img, image_RGB, cv::COLOR_BGR2RGB);
 
     clip_image_u8 temp;
 
     temp.nx = img.cols;
     temp.ny = img.rows;
-    temp.size = img.cols * img.rows;
+    temp.size = img.cols * img.rows * 3;
     // temp.data = static_cast<uint8_t*>(img.data); // 只是将指针的值进行复制，并没有进行内存的复制
     temp.data = new uint8_t[temp.size]();
-    memcpy(temp.data, img.data, temp.size);
+    memcpy(temp.data, image_RGB.data, temp.size * sizeof(uint8_t));
     
     if (!clip_image_preprocess(clip_ctx_, &temp, &res)) {
         std::cout << "Unable to preprocess image" << std::endl;

@@ -1,8 +1,12 @@
 // main example to demonstrate usage of the API
 
 #include "clip.cpp/clip.h"
+#include "clip_instance/clip_instance.h"
 #include "clip_instance/common-clip.h"
-
+#include <filesystem>
+#include <iostream>
+#include <opencv2/opencv.hpp>
+namespace fs = std::filesystem;
 int main(int argc, char ** argv) {
     ggml_time_init();
     const int64_t t_main_start_us = ggml_time_us();
@@ -13,51 +17,35 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    const int64_t t_load_us = ggml_time_us();
-
-    auto ctx = clip_model_load(params.model.c_str(), params.verbose); // 初始化ctx，已有
-    if (!ctx) {
-        printf("%s: Unable  to load model from %s", __func__, params.model.c_str());
-        return 1;
-    }
-
-    const int64_t t_image_load_us = ggml_time_us();
-
-    // load the image
-    const char * img_path = params.image_paths[0].c_str();
+    // test image load
+    int64_t t_load_us = ggml_time_us();
     clip_image_u8 img0;
-    if (!clip_image_load_from_file(img_path, &img0)) {
-        fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path);
-        return 1;
+    clip_image_load_from_file(params.image_paths[0].c_str(), &img0);
+    int64_t t_image_load_us = ggml_time_us();
+    printf("Image loaded in %8.2f ms\n",  (t_image_load_us - t_load_us) / 1000.0);
+    // std::flush(std::cout);
+
+    std::string file("/home/catkin_ws/projects/clip_sam_ws/SamToClip/config/clip.yaml");
+    SamToClip::ClipInstance clip_instance(file);
+
+    clip_image_u8 img1;
+    cv::Mat cv_img = cv::imread(params.image_paths[0]);
+
+    t_load_us = ggml_time_us();
+    clip_instance.to_clip_image_u8(img1, cv_img);
+    t_image_load_us = ggml_time_us();
+    printf("Image loaded in %8.2f ms\n",(t_image_load_us - t_load_us) / 1000.0);
+    // std::cout << "channels: " << cv::imread(params.image_paths[0]).channels() << std::endl;
+    int cnt = 0;
+    for (int i = 0; i < img0.size; i++) {
+        if (img0.data[i] != img1.data[i]) {
+            cnt++;
+            std::cout << "deferent: " << i << std::endl;
+            std::cout << std::to_string(img0.data[i])<< std::endl;
+            std::cout << std::to_string(img1.data[i])<< std::endl;
+            std::cout << "data not equal " << cnt << std::endl;
+        }
     }
-
-    const int64_t t_similarity_score = ggml_time_us(); // 获取相似度的起始时间
-
-    const char * text = params.texts[0].c_str(); // 文本内容
-    float score; // 得分
-
-    if (!clip_compare_text_and_image(ctx, params.n_threads, text, &img0, &score)) {
-        printf("Unable to compare text and image\n");
-        clip_free(ctx); // 释放ctx
-        return 1;
-    }
-
-    const int64_t t_main_end_us = ggml_time_us(); // 获取结束时间
-
-    printf("%s: Similarity score = %2.3f\n", __func__, score);
-
-    if (params.verbose >= 1) {
-        printf("\n\nTimings\n");
-        printf("%s: Model loaded in %8.2f ms\n", __func__, (t_image_load_us - t_load_us) / 1000.0);
-        printf("%s: Image loaded in %8.2f ms\n", __func__, (t_similarity_score - t_image_load_us) / 1000.0);
-        printf("%s: Similarity score calculated in %8.2f ms\n", __func__, (t_main_end_us - t_similarity_score) / 1000.0);
-        printf("%s: Total time: %8.2f ms\n", __func__, (t_main_end_us - t_main_start_us) / 1000.0);
-    }
-
-    // Usage of the individual functions that make up clip_compare_text_and_image is demonstrated in the
-    // `extract` example.
-
-    clip_free(ctx);
 
     return 0;
 }

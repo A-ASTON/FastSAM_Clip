@@ -93,7 +93,6 @@ void FastSam::copy_from_Mat(const cv::Mat &image, cv::Size &size)
     CHECK(cudaMemcpyAsync(this->device_ptrs[0], nchw.ptr<float>(),
                           nchw.total() * nchw.elemSize(), cudaMemcpyHostToDevice,
                           this->stream));
-    std::cout << "After copy_from_Mat" << std::endl;
 }
 
 /**
@@ -237,7 +236,12 @@ void FastSam::draw_objects(const Mat &image, Mat &res, const vector<Object> &obj
     res = image.clone(); // 原图的copy
     Mat color_mask = image.clone(); // 原图的copy
     std::srand(std::time(0)); // 设置随机数种子
-    for (auto &obj : objs)
+    // 根据area排序，先为面积大的区域着色
+    vector<Object> objs_sorted = objs;
+    std::sort(objs_sorted.begin(), objs_sorted.end(), [](const Object& obj1, const Object& obj2){
+        return obj1.rect.area() > obj2.rect.area();   
+    });
+    for (auto &obj : objs_sorted)
     {
         // 生成随机的RGB值
         int r = std::rand() % 256;
