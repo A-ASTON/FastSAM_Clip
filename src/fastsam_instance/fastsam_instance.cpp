@@ -42,12 +42,16 @@ void FastSamInstance::crop_images(bool filter) {
 
     int id = 0;
     for (auto& obj : objs_) {
-        Segment seg = segment_image(obj, id);
+        Segment* seg = segment_image(obj, id); // 非空检测呢？
+        if (!seg->valid) {
+            std::cout << "Some segment wrong!!!" << std::endl;
+            continue;
+        }
         if (!filter) {
             segments_.push_back(seg); // 根据obj进行crop，然后压入segments_
         } else {
             // 过滤掉area太小的区域
-            if (seg.area < 500) {
+            if (seg->area < 500) {
                 filter_id.push_back(id);
             } else {
                 segments_.push_back(seg);
@@ -58,15 +62,17 @@ void FastSamInstance::crop_images(bool filter) {
     }
 }
 
-Segment FastSamInstance::segment_image(const Object& obj, const int id) {
+Segment* FastSamInstance::segment_image(const Object& obj, const int id) {
     // 利用内部image_即原图进行crop
-    Segment seg;
-    seg.id = id;
-    seg.bbox = obj.rect;
-    seg.score = obj.prob;
+    // 返回原图尺寸的，但只包含特定boj的Segment
+    Segment* seg = new Segment;
+    seg->id = id;
+    seg->bbox = obj.rect;
+    seg->score = obj.prob;
     // 利用obj.boxMask 进行crop
     if (image_.empty()) {
         std::cout << "Error: Image is NULL!" << std::endl; 
+        seg->valid = false;
         return seg;
     }
     cv::Mat crop_image = image_.clone();
@@ -74,7 +80,7 @@ Segment FastSamInstance::segment_image(const Object& obj, const int id) {
 
     // 根据mask和bbox将目标区域保留,获取原图大小的mask
     cv::Mat mask = cv::Mat::zeros(image_.size(), CV_8UC1); // 代表保留原图大小，只有目标object mask
-    mask(seg.bbox).setTo(cv::Scalar(255), obj.boxMask);
+    mask(seg->bbox).setTo(cv::Scalar(255), obj.boxMask);
     
     std::vector<std::vector<cv::Point>> contours; // 存储轮廓坐标
     cv::Mat hierarchy;
@@ -129,8 +135,9 @@ Segment FastSamInstance::segment_image(const Object& obj, const int id) {
     // 保留掩码处的图像
     // cv::resize(crop_image, crop_image, newMask.size());
     crop_image.setTo(bg_color, new_mask); 
-    seg.img = crop_image;
-    seg.area = new_mask.size().area();
+    seg->img = crop_image;
+    seg->area = new_mask.size().area();
+    seg->valid = true;
 
     // cv::imshow("crop_image", crop_image);
     // cv::waitKey(0);
@@ -138,8 +145,8 @@ Segment FastSamInstance::segment_image(const Object& obj, const int id) {
 
     // 方法二，得到裁剪出来的图像
     // cv::Mat crop = image_(cv::Rect(x1, y1, x2 - x1, y2 - y1));
-    // seg.img = crop;
-    // seg.area = crop.size().area();
+    // seg->img = crop;
+    // seg->area = crop.size().area();
 
     // cv::imshow("crop_image", crop);
     // cv::waitKey(0);
@@ -147,7 +154,7 @@ Segment FastSamInstance::segment_image(const Object& obj, const int id) {
     return seg;
 }
 
-std::vector<Segment> FastSamInstance::get_segments() {
+std::vector<Segment*> FastSamInstance::get_segments() {
     return segments_;
 }
 

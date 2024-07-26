@@ -14,13 +14,13 @@ public:
 
     void infer(const cv::Mat& img);
     void crop_images(bool filter = false); //根据后处理得到的objs_，更新segments_
-    Segment segment_image(const Object& obj, const int id);
-    std::vector<Segment> get_segments();
+    Segment* segment_image(const Object& obj, const int id);
+    std::vector<Segment*> get_segments();
 private:
     // trt module related只保留一个FastSAM实例
     std::unique_ptr<FastSam> fastsam_;
     std::vector<Object> objs_;
-    std::vector<Segment> segments_;
+    std::vector<Segment*> segments_;
     int cnt_;
     double time_sum_;
     cv::Mat color_mask_, image_;

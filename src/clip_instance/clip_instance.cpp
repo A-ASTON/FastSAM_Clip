@@ -25,19 +25,17 @@ ClipInstance::ClipInstance(std::string yaml_path) {
         printf("\n\nTimings\n");
         printf("%s: Model loaded in %8.2f ms\n", __func__, (t_load_end_us - t_load_us) / 1000.0);
     }
+
+    embedding_dim_ = clip_get_vision_hparams(clip_ctx_)->projection_dim;
 }
 
 ClipInstance::~ClipInstance() {
     clip_free(clip_ctx_);
 }
 
-bool ClipInstance::load_model() {
-    return true;
-}
-
 // generate_text_feature
 float* ClipInstance::generate_text_feature(const char* text) {
-    const int vec_dim = clip_get_vision_hparams(clip_ctx_)->projection_dim;
+    const int vec_dim = embedding_dim_;
     float* vec = new float[vec_dim]();
 
     std::cout << "Generating text feature..." << std::endl;
@@ -58,7 +56,7 @@ float* ClipInstance::generate_text_feature(const char* text) {
     return vec;
 }
 
-bool ClipInstance::generate_segments_feature(std::vector<Segment>& segments) {
+bool ClipInstance::generate_segments_feature(std::vector<Segment*>& segments) {
     // 以batch的方式
     if (segments.size() == 0) {
         std::cout << "Segments' size is zero!" << std::endl;
@@ -67,20 +65,20 @@ bool ClipInstance::generate_segments_feature(std::vector<Segment>& segments) {
     std::cout << "Generating segments feature..." << std::endl;
     auto start_us = ggml_time_us();
 
-    const int vec_dim = clip_get_vision_hparams(clip_ctx_)->projection_dim;
+    const int vec_dim = embedding_dim_;
     float vec[vec_dim];
 
-    for (Segment& seg : segments) {
+    for (Segment* seg : segments) {
         clip_image_f32 img_res;
-        if (!to_clip_image_f32(img_res, seg.img)) {
+        if (!to_clip_image_f32(img_res, seg->img)) {
             std::cout << "Unable to get clip image f32" << std::endl;
             continue;
         } else {
             // feature
             clip_image_encode(clip_ctx_, params_.n_threads, &img_res, vec, true); // 不同大小估计不能用clip_image_encode_batch
-            seg.embedding_dim = vec_dim;
-            seg.embedding = new float[vec_dim]();
-            memcpy(seg.embedding, vec, vec_dim * sizeof(float));
+            seg->embedding_dim = vec_dim;
+            seg->embedding = new float[vec_dim]();
+            memcpy(seg->embedding, vec, vec_dim * sizeof(float));
         }
     }
     auto end_us = ggml_time_us();
@@ -91,28 +89,86 @@ bool ClipInstance::generate_segments_feature(std::vector<Segment>& segments) {
     return true;
 }
 
-bool ClipInstance::generate_mask_feature(Segment& seg) {
-    // 生成单个mask的feature
-    clip_image_f32 img_res;
-    to_clip_image_f32(img_res, seg.img);
+bool ClipInstance::generate_segments_feature_batch(std::vector<Segment*>& segments) {
+    // 以batch的方式
+    if (segments.size() == 0) {
+        std::cout << "Segments' size is zero!" << std::endl;
+        return false;
+    }
+    std::cout << "Generating segments feature..." << std::endl;
+    auto start_us = ggml_time_us();
 
-    const int vec_dim = clip_get_vision_hparams(clip_ctx_)->projection_dim;
-    int shape[2] = {1, vec_dim};
-    float vec[vec_dim]; // feature
-    clip_image_encode(clip_ctx_, params_.n_threads, &img_res, vec, false);
+    const int vec_dim = embedding_dim_;
     
+    // batch 不能设置太大，当作一个参数吧
+    const size_t batch_size = 4;
+    std::vector<clip_image_u8> u8_batch_data(batch_size);
+    std::vector<Segment*> valid_segments(batch_size);
+    std::vector<clip_image_f32> f32_batch_data(batch_size);
+
+    auto u8_batch = clip_image_u8_batch{};
+    auto f32_batch = clip_image_f32_batch{};
+
+    f32_batch.data = f32_batch_data.data();
+    f32_batch.size = f32_batch_data.size();
+
+    for (size_t i = 0; i < segments.size(); i += batch_size) {
+        // 同一个batch
+        u8_batch_data.clear();
+        valid_segments.clear();
+
+        
+        for (int j = 0; j < batch_size; j++) {
+            clip_image_u8 img_u8;
+            Segment* seg = segments[i + j];
+            if (i + j < segments.size()) {
+                if (seg->valid && to_clip_image_u8(img_u8, seg->img)) {
+                    // valid_segments[j] = seg; // 有可能部分为空的！所以还是要clear
+                    // u8_batch_data[j] = img_u8;
+                    valid_segments.push_back(seg);
+                    u8_batch_data.push_back(img_u8);
+                } else {
+                    std::cout << "Unable to get clip image u8 in generate_segments_feature_batch" << std::endl;
+                }
+            }
+        }
+
+        u8_batch.data = u8_batch_data.data(); // 共享同一份内存
+        u8_batch.size = u8_batch_data.size();
+
+        // 然后调用clip_image_batch_preprocess 获取clip_image_f32_batch
+
+        clip_image_batch_preprocess(clip_ctx_, params_.n_threads, &u8_batch, &f32_batch);
+
+        // 调用clip_image_batch_encode得到 float * vec;
+        float* vec = new float[vec_dim * u8_batch.size]();
+        clip_image_batch_encode(clip_ctx_, params_.n_threads, &f32_batch, vec, true);
+
+        // 通过vec_dim偏移得到每个seg的embedding
+        for (size_t k = 0; k < valid_segments.size(); k++) {
+            Segment* seg = valid_segments[k];
+            seg->embedding_dim = vec_dim;
+            seg->embedding = new float[vec_dim]();
+            memcpy(seg->embedding, vec + k * vec_dim, vec_dim * sizeof(float));
+        }
+    }
+    auto end_us = ggml_time_us();
+
+    if (params_.verbose >= 1) {
+        printf("\n%s: Generated segments embedding use batch in  %8.2f ms\n", __func__, (end_us - start_us) / 1000.0);
+    }
+
+    return true;
 }
 
+
 void ClipInstance::compute_image_text_similarity(clip_image_u8& res, const char* text) {
-    // clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, const char * text, const clip_image_u8 * image,
-    //                              float * score)
     float score;
     clip_compare_text_and_image(clip_ctx_, params_.n_threads, text, &res, &score);
     std::cout << "score with "<< text << " is " << score << std::endl;
 }
-// bool generate_masks_feature(std::vector<CropImg>& crop_imgs) {
-//     // 生成多个mask的feature，通常属于一张image
-// }
+
+
 bool ClipInstance::to_clip_image_u8(clip_image_u8& res, const cv::Mat& img) {
     // transfer to clip_image_u8
     // cv::Mat is BGR!!!
@@ -128,23 +184,7 @@ bool ClipInstance::to_clip_image_u8(clip_image_u8& res, const cv::Mat& img) {
     res.nx = img.cols;
     res.ny = img.rows;
     res.size = img.cols * img.rows * 3;
-    // res.data = static_cast<uint8_t*>(img.data); // 只是将指针的值进行复制，并没有进行内存的复制
     res.data = new uint8_t[res.size]();
-    
-    // 试试逐像素赋值
-    // for (int i = 0; i < image_RGB.rows; ++i) {
-    //     for (int j = 0; j < image_RGB.cols; ++j) {
-    //         // 对于多通道图像
-    //         cv::Vec3b color = image_RGB.at<cv::Vec3b>(i, j);
-    //         uint8_t blue = color.val[0];
-    //         uint8_t green = color.val[1];
-    //         uint8_t red = color.val[2];
-
-    //         res.data[i * image_RGB.cols * 3 + j * 3 + 0] = red;
-    //         res.data[i * image_RGB.cols * 3 + j * 3 + 1] = green;
-    //         res.data[i * image_RGB.cols * 3 + j * 3 + 2] = blue;
-    //     }
-    // }
 
     memcpy(res.data, image_RGB.data, res.size * sizeof(uint8_t));
     
@@ -152,7 +192,7 @@ bool ClipInstance::to_clip_image_u8(clip_image_u8& res, const cv::Mat& img) {
 }
 
 bool ClipInstance::to_clip_image_f32(clip_image_f32& res, const cv::Mat& img) {
-    // transfer to clip_image_f32
+    // transfer to clip_image_u8 and preprocess to clip_image_f32
     // cv::Mat is BGR!!!
     // stbi is RGBRGBRGB
     if (!img.data) {
@@ -166,7 +206,6 @@ bool ClipInstance::to_clip_image_f32(clip_image_f32& res, const cv::Mat& img) {
     temp.nx = img.cols;
     temp.ny = img.rows;
     temp.size = img.cols * img.rows * 3;
-    // temp.data = static_cast<uint8_t*>(img.data); // 只是将指针的值进行复制，并没有进行内存的复制
     temp.data = new uint8_t[temp.size]();
     memcpy(temp.data, image_RGB.data, temp.size * sizeof(uint8_t));
     
