@@ -94,7 +94,7 @@ __global__ void integrateBlocksKernel(
   Vector3f p_voxel_center_C;
   // 体素投影，得到体素的深度值和对应的像素，以及体素中心坐标 
   // 在前面步骤的raycast获取待更新的block index中，只需要粗略地根据深度图获取涉及更新的block index而已，现在需要voxel得到准确的深度值
-  if (!projectThreadVoxel(block_indices_device_ptr, camera, T_C_L, block_size, // 一个体素吗？？？？
+  if (!projectThreadVoxel(block_indices_device_ptr, camera, T_C_L, block_size, // 该设备函数内部通过block id和thread id获取一个voxel，然后计算该voxel的中心坐标
                           &u_px, &voxel_depth_m, &p_voxel_center_C)) {
     return;
   }
