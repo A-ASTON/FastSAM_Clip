@@ -107,7 +107,7 @@ __global__ void integrateBlocksKernel(
   }
 
   // Interpolate on the image plane
-  float image_value; // 根据体素对应的像素坐标，在深度图上进行插值计算得到对应的深度值，即相机光心到表面的距离
+  float image_value; // 根据体素对应的像素坐标，在深度图上进行插值计算得到对应的深度值，得到相机光心穿过到表面的距离
   if (!interpolation::interpolate2DClosest<
           float, interpolation::checkers::FloatPixelGreaterThanZero>(
           image, u_px, rows, cols, &image_value)) {

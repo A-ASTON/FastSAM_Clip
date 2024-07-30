@@ -23,6 +23,10 @@ limitations under the License.
 
 namespace nvblox {
 // 更新TSDF体素的函子
+// 定义的这个结构体，包含了一个设备函数（重载了()，即可以通过结构体名()调用）
+// 该结构体实例在projective_tsdf_integrator初始化时会创建一个在统一内存上的host指针
+// 并设置相关的一些预设的参数
+// 在调用getter时，会返回一个unified_ptr，指向一个在统一内存上的device指针
 struct UpdateTsdfVoxelFunctor {
   UpdateTsdfVoxelFunctor() {}
 
@@ -77,7 +81,7 @@ struct UpdateTsdfVoxelFunctor {
   float max_weight_ = 100.0f;
 
   WeightingFunction weighting_function_ =
-      WeightingFunction(kDefaultWeightingFunctionType);
+      WeightingFunction(kDefaultWeightingFunctionType); // 加权函数
 };
 
 ProjectiveTsdfIntegrator::ProjectiveTsdfIntegrator()
