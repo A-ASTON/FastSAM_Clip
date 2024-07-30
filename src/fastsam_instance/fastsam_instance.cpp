@@ -51,10 +51,11 @@ void FastSamInstance::crop_images(bool filter) {
             segments_.push_back(seg); // 根据obj进行crop，然后压入segments_
         } else {
             // 过滤掉area太小的区域
-            if (seg->area < 500) {
+            if (seg->area < 600) {
                 filter_id.push_back(id);
             } else {
                 segments_.push_back(seg);
+                cv::imwrite("/home/catkin_ws/projects/clip_sam_ws/SamToClip/seg_output/" + std::to_string(id) + ".jpg", seg->img);
             }
         }
         id++;
@@ -112,10 +113,10 @@ Segment* FastSamInstance::segment_image(const Object& obj, const int id) {
     // 最小外接矩阵掩码，往外再多加一点像素
     cv::Mat new_mask = cv::Mat::zeros(mask.size(), CV_8UC1);
 
-    x1 = x1 - 10;
-    x2 = x2 + 10;
-    y1 = y1 - 10;
-    y2 = y2 + 10;
+    // x1 = x1 - 10;
+    // x2 = x2 + 10;
+    // y1 = y1 - 10;
+    // y2 = y2 + 10;
 
     clamp(x1, 0, mask.rows);
     clamp(x2, 0, mask.rows);
@@ -135,9 +136,14 @@ Segment* FastSamInstance::segment_image(const Object& obj, const int id) {
     // 保留掩码处的图像
     // cv::resize(crop_image, crop_image, newMask.size());
     crop_image.setTo(bg_color, new_mask); 
+
+    // resize to 512 512
+    cv::resize(crop_image, crop_image, cv::Size(512, 512));
     seg->img = crop_image;
     seg->area = new_mask.size().area();
     seg->valid = true;
+
+    
 
     // cv::imshow("crop_image", crop_image);
     // cv::waitKey(0);

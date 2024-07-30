@@ -3,6 +3,7 @@
 #include "clip.cpp/clip.h"
 #include "clip_instance/clip_instance.h"
 #include "clip_instance/common-clip.h"
+#include "common.h"
 #include <filesystem>
 #include <iostream>
 #include <opencv2/opencv.hpp>
@@ -51,45 +52,47 @@ int main(int argc, char ** argv) {
                 const int64_t t_similarity_score = ggml_time_us(); // 获取相似度的起始时间
 
                 
-                float score; // 得分
+                float* vec = new float[768](); // 得分
+                clip_image_f32 img1;
+                clip_image_preprocess(ctx, &img0, &img1);
+                clip_image_encode(ctx, params.n_threads, &img1, vec, true);
+                // if (!clip_compare_text_and_image(ctx, params.n_threads, text, &img0, &score)) {
+                //     printf("Unable to compare text and image\n");
+                //     clip_free(ctx); // 释放ctx
+                //     return 1;
+                // }
+                // score_map.push_back({strPath, score});
 
-                if (!clip_compare_text_and_image(ctx, params.n_threads, text, &img0, &score)) {
-                    printf("Unable to compare text and image\n");
-                    clip_free(ctx); // 释放ctx
-                    return 1;
-                }
-                score_map.push_back({strPath, score});
+                // const int64_t t_main_end_us = ggml_time_us(); // 获取结束时间
 
-                const int64_t t_main_end_us = ggml_time_us(); // 获取结束时间
-
-                std::cout << img_path << std::endl;
-                printf("%s: Similarity score = %8.2f\n", __func__, score);
-                if (params.verbose >= 1) {
-                    printf("\n\nTimings\n");
-                    printf("%s: Model loaded in %8.2f ms\n", __func__, (t_image_load_us - t_load_us) / 1000.0);
-                    printf("%s: Image loaded in %8.2f ms\n", __func__, (t_similarity_score - t_image_load_us) / 1000.0);
-                    printf("%s: Similarity score calculated in %8.2f ms\n", __func__, (t_main_end_us - t_similarity_score) / 1000.0);
-                    printf("%s: Total time: %8.2f ms\n", __func__, (t_main_end_us - t_main_start_us) / 1000.0);
-                }
+                // std::cout << img_path << std::endl;
+                // printf("%s: Similarity score = %8.2f\n", __func__, score);
+                // if (params.verbose >= 1) {
+                //     printf("\n\nTimings\n");
+                //     printf("%s: Model loaded in %8.2f ms\n", __func__, (t_image_load_us - t_load_us) / 1000.0);
+                //     printf("%s: Image loaded in %8.2f ms\n", __func__, (t_similarity_score - t_image_load_us) / 1000.0);
+                //     printf("%s: Similarity score calculated in %8.2f ms\n", __func__, (t_main_end_us - t_similarity_score) / 1000.0);
+                //     printf("%s: Total time: %8.2f ms\n", __func__, (t_main_end_us - t_main_start_us) / 1000.0);
+                // }
             }
         }
     }
 
-    // 排序
-    std::sort(score_map.begin(), score_map.end(), [](const std::pair<std::string, float>& a, const std::pair<std::string, float>& b){
-        return a.second > b.second;
-    });
+    // // 排序
+    // std::sort(score_map.begin(), score_map.end(), [](const std::pair<std::string, float>& a, const std::pair<std::string, float>& b){
+    //     return a.second > b.second;
+    // });
 
-    std::cout << "max score: " << score_map[0].second << std::endl;
-    std::cout << "max path: " << score_map[0].first << std::endl;
+    // std::cout << "max score: " << score_map[0].second << std::endl;
+    // std::cout << "max path: " << score_map[0].first << std::endl;
     
-    std::cout << text << std::endl;
+    // std::cout << text << std::endl;
 
-    for (int i = 0; i < 4; i++) {
-        cv::imshow("max jpg", cv::imread(score_map[i].first));
-        std::cout << "score " << i << " " << score_map[i].second << std::endl;
-        cv::waitKey(0);
-    }
+    // for (int i = 0; i < 4; i++) {
+    //     cv::imshow("max jpg", cv::imread(score_map[i].first));
+    //     std::cout << "score " << i << " " << score_map[i].second << std::endl;
+    //     cv::waitKey(0);
+    // }
     
     
     

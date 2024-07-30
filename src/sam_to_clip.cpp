@@ -5,6 +5,7 @@
 #include "common.h"
 #include <filesystem>
 namespace fs = std::filesystem;
+
 int main(int argc, char *argv[]) {
     std::string file("/home/catkin_ws/projects/clip_sam_ws/SamToClip/config/clip.yaml");
     SamToClip::ClipInstance clip_instance(file);
@@ -12,7 +13,7 @@ int main(int argc, char *argv[]) {
     std::string engine_file("/home/catkin_ws/projects/clip_sam_ws/SamToClip/models/FastSAM.engine");
     SamToClip::FastSamInstance fastsam_instance(engine_file);
 
-    fs::path folder_path("/home/catkin_ws/projects/clip_sam_ws/SamToClip/seg_output/");
+    fs::path folder_path("/home/catkin_ws/projects/clip_sam_ws/SamToClip/test_images/");
 
     const int64_t t_main_start_us = ggml_time_us();
     const char *text = clip_instance.params_.texts[0].c_str();
@@ -26,6 +27,9 @@ int main(int argc, char *argv[]) {
                 file_path.extension() == ".jpeg" || file_path.extension() == ".bmp") {
                 std::string strPath = file_path.string();
                 const char * img_path = strPath.c_str();
+
+                std::cout << "file path: " << img_path << std::endl;
+
                 cv::Mat img = cv::imread(img_path);
                 const int64_t t_similarity_score = ggml_time_us(); // 获取相似度的起始时间
 
@@ -34,8 +38,10 @@ int main(int argc, char *argv[]) {
                 fastsam_instance.crop_images(true); // 执行裁剪，生成segments_
 
                 std::vector<SamToClip::Segment*> segments = fastsam_instance.get_segments();
-                // clip_instance.generate_segments_feature(segments);
-                clip_instance.generate_segments_feature_batch(segments);
+                clip_instance.generate_segments_feature(segments);
+                // clip_instance.generate_segments_feature_batch(segments); batch_process仍然有问题
+
+                clip_instance.update_segments_feature(img, segments);
                 
                 float max_score = 0;
                 int max_idx = 0;
@@ -43,6 +49,7 @@ int main(int argc, char *argv[]) {
 
                 for (auto& seg : segments) {
                     if (seg->embedding_dim != 0) {
+                        // checkNorm(seg->embedding, seg->embedding_dim);
                         float similarity_score = clip_similarity_score(seg->embedding, vec, seg->embedding_dim);
                         if (similarity_score > max_score) {
                             max_score = similarity_score;
@@ -68,8 +75,6 @@ int main(int argc, char *argv[]) {
     printf("%s: Total time: %8.2f ms\n", __func__, (t_main_end_us - t_main_start_us) / 1000.0);
 
     
-    
-
     return 0;
 }
 

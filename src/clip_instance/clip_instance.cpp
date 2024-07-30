@@ -79,6 +79,7 @@ bool ClipInstance::generate_segments_feature(std::vector<Segment*>& segments) {
             seg->embedding_dim = vec_dim;
             seg->embedding = new float[vec_dim]();
             memcpy(seg->embedding, vec, vec_dim * sizeof(float));
+            checkNorm(vec, vec_dim);
         }
     }
     auto end_us = ggml_time_us();
@@ -90,7 +91,7 @@ bool ClipInstance::generate_segments_feature(std::vector<Segment*>& segments) {
 }
 
 bool ClipInstance::generate_segments_feature_batch(std::vector<Segment*>& segments) {
-    // 以batch的方式
+    // 以batch的方式，仍然存在一些问题，先不用batch推理吧
     if (segments.size() == 0) {
         std::cout << "Segments' size is zero!" << std::endl;
         return false;
@@ -139,7 +140,6 @@ bool ClipInstance::generate_segments_feature_batch(std::vector<Segment*>& segmen
         // 然后调用clip_image_batch_preprocess 获取clip_image_f32_batch
 
         clip_image_batch_preprocess(clip_ctx_, params_.n_threads, &u8_batch, &f32_batch);
-
         // 调用clip_image_batch_encode得到 float * vec;
         float* vec = new float[vec_dim * u8_batch.size]();
         clip_image_batch_encode(clip_ctx_, params_.n_threads, &f32_batch, vec, true);
@@ -160,6 +160,70 @@ bool ClipInstance::generate_segments_feature_batch(std::vector<Segment*>& segmen
 
     return true;
 }
+
+// common function
+std::vector<float> softmax(const std::vector<float>& input) {
+    std::vector<float> output(input.size());
+    float maxVal = *std::max_element(input.begin(), input.end());
+    
+    float sum = 0.0;
+    for (size_t i = 0; i < input.size(); ++i) {
+        output[i] = std::exp(input[i] - maxVal); // 减去最大值避免溢出
+        sum += output[i];
+    }
+    
+    for (size_t i = 0; i < output.size(); ++i) {
+        output[i] /= sum; // 归一化
+    }
+    
+    return output;
+}
+
+
+
+// Image数据结构
+// 当前帧
+// 传入 当前帧image，Segments
+// 根据image的clip特征更新segments的embedding
+bool ClipInstance::update_segments_feature(const cv::Mat& img, std::vector<Segment*>& segments) {
+    clip_image_f32 img_res;
+    if (!to_clip_image_f32(img_res, img)) {
+        std::cout << "Unable to get clip image f32" << std::endl;
+        return false;
+    } else {
+        // feature
+        float* global_embedding = new float[embedding_dim_];
+        clip_image_encode(clip_ctx_, params_.n_threads, &img_res, global_embedding, true);
+        
+        // 计算原图 feature 和各个segment的feature的余弦相似度
+        // TODO(通过矩阵进行运算)
+        std::vector<float> weight_l_g(segments.size());
+        for (int i = 0; i < segments.size(); i++) {
+            weight_l_g[i] = clip_similarity_score(global_embedding, segments[i]->embedding, embedding_dim_);
+        }
+
+        weight_l_g = softmax(weight_l_g);
+        
+        float* norm = new float[segments.size()];
+        // 根据权重更新segment的embedding
+        for (int i = 0; i < segments.size(); i++) {
+            for (int k = 0; k < embedding_dim_; k++) {
+                segments[i]->embedding[k] = segments[i]->embedding[k] * (1 - weight_l_g[i]) + global_embedding[k] * weight_l_g[i];
+                norm[i] += pow(segments[i]->embedding[k], 2);
+            }
+        }
+
+        // normalize
+        for (int i = 0; i < segments.size(); i++) {
+            for (int k = 0; k < embedding_dim_; k++) {
+                segments[i]->embedding[k] /= sqrt(norm[i]);
+            }
+        }
+
+        return true;
+    }
+}
+
 
 
 void ClipInstance::compute_image_text_similarity(clip_image_u8& res, const char* text) {

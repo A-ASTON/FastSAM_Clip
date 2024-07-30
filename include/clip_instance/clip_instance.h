@@ -12,12 +12,15 @@ class ClipInstance {
 public:
     ClipInstance(std::string yaml_file);
     ~ClipInstance();
-    // bool generate_masks_feature(std::vector<CropImg>& crop_imgs);
     bool to_clip_image_f32(clip_image_f32& res, const cv::Mat& img);
     bool to_clip_image_u8(clip_image_u8& res, const cv::Mat& img);
+
     bool generate_segments_feature(std::vector<Segment*>& segments);
     bool generate_segments_feature_batch(std::vector<Segment*>& segments);
     float* generate_text_feature(const char* text);
+    bool update_segments_feature(const cv::Mat& img, std::vector<Segment*>& segments);
+
+
     void compute_image_text_similarity(clip_image_u8& res, const char* text);
     app_params params_;  // 方便调试
 

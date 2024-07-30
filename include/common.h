@@ -13,4 +13,13 @@ struct Segment{
     bool valid = false;
 };
 
+inline void checkNorm(const float* embedding, int dim) {
+    float sum = 0;
+    for (int i = 0; i < dim; i++) {
+        sum += pow(embedding[i], 2);
+    }
+    std::cout << "sum = " << sum << std::endl;
+}
+
+
 }
